@@ -1,0 +1,39 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+jobs:
+  wasm-build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install wasm-pack
+        run: cargo install --git https://github.com/rustwasm/wasm-pack.git
+      - name: Build package
+        run: wasm-pack build --scope maru0137
+      - name: Upload package
+        uses: actions/upload-artifact@v1
+        with:
+          name: pkg
+          path: pkg
+
+  publish-github-package:
+    needs: wasm-build
+    runs-on: macos-latest
+    steps:
+      - name: Download the package
+        uses: actions/download-artifact@v1
+        with:
+          name: pkg
+      - name: Setup Node.js
+        uses: actions/setup-node@v1
+        with:
+          node-version: '12.x'
+          registry-url: "https://npm.pkg.github.com/"
+      - name: Publish the package
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: ./pkg
