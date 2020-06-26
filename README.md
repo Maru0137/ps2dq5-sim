@@ -1,5 +1,7 @@
 # PS2DQ5-Sim
 
+A simulator of PS2 Dragon Quest V
+
 ## Requirements
 * Rust (Edition 2018)
     * Please install follow [the domumentation](https://www.rust-lang.org/tools/install)
@@ -8,7 +10,7 @@
 ### Encount probabilty simulation
 
 ```sh
-cargo run --release --example similate_encount <encount_table_id> <iter_of_simuation>
+cargo run --release --example simulate_encount <encount_table_id> <iter_of_simuation>
 ```
 
 For example, if you want to know the probability of encounter with `スライムナイト`  at around `ラインハット`, 
