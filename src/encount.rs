@@ -3,6 +3,8 @@ use csv;
 use num_traits;
 use rand::distributions::uniform::{SampleBorrow, SampleUniform};
 use rand::prelude::*;
+use std::collections::{HashMap, HashSet};
+use wasm_bindgen::prelude::*;
 
 pub fn rand_range<T: SampleUniform, B>(upper: B) -> T
 where
@@ -30,7 +32,7 @@ enum Pattern {
     Fixed,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct Group {
     monster: monster::Kind,
     num: usize,
@@ -39,6 +41,21 @@ pub struct Group {
 impl Group {
     pub fn monster(&self) -> monster::Kind {
         self.monster
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+pub struct Encount {
+    groups: Vec<Group>,
+}
+
+impl Encount {
+    pub fn groups(&self) -> &Vec<Group> {
+        &self.groups
+    }
+
+    pub fn sort(&mut self) {
+        self.groups.sort();
     }
 }
 
@@ -172,15 +189,21 @@ impl Table {
         return Self::make_groups(&entries, Pattern::Mixed);
     }
 
-    pub fn encount(&self) -> Vec<Group> {
+    pub fn encount(&self) -> Encount {
         let (index, entry) = self.choose_entry(false);
         return if index < Self::MIXED_GROUP_UPPER {
-            self.encount_mixed(&entry)
+            Encount {
+                groups: self.encount_mixed(&entry),
+            }
         } else if index < Self::SINGLE_GROUP_UPPER {
-            Self::make_groups(&[entry], Pattern::Single)
+            Encount {
+                groups: Self::make_groups(&[entry], Pattern::Single),
+            }
         } else {
             // TODO: implement
-            Self::make_groups(&[entry], Pattern::Single)
+            Encount {
+                groups: Self::make_groups(&[entry], Pattern::Single),
+            }
         };
     }
 }
@@ -201,4 +224,73 @@ lazy_static! {
         let mut rdr = csv::Reader::from_reader(encount_table_csv.as_bytes());
         encount_tables_from_csv(&mut rdr)
     };
+}
+
+pub fn simulate(table_index: usize, iter: usize) -> Vec<Encount> {
+    let table = &TABLES[table_index];
+    return (0..iter).map(|_| table.encount()).collect();
+}
+
+fn sort(encounts: &Vec<Encount>) -> Vec<Encount> {
+    let mut sorted = encounts.clone();
+    for encount in sorted.iter_mut() {
+        encount.sort();
+    }
+
+    return sorted;
+}
+
+pub fn encount_distribution(encounts: &Vec<Encount>) -> HashMap<Encount, f64> {
+    let sorted = sort(encounts);
+
+    let mut histogram = HashMap::<Encount, usize>::new();
+    for encount in sorted.iter() {
+        let count = histogram.entry(encount.clone()).or_default();
+        *count += 1;
+    }
+
+    let distribution: HashMap<Encount, f64> = histogram
+        .iter()
+        .map(|(k, &v)| (k.clone(), (v as f64) / (encounts.len() as f64)))
+        .collect();
+    return distribution;
+}
+
+pub fn monster_distribution(encounts: &Vec<Encount>) -> HashMap<monster::Kind, f64> {
+    let mut histogram = HashMap::<monster::Kind, usize>::new();
+    for encount in encounts.iter() {
+        let mut monster_set = HashSet::new();
+        for group in encount.groups() {
+            monster_set.insert(group.monster());
+        }
+
+        for monster in &monster_set {
+            let count = histogram.entry(*monster).or_default();
+            *count += 1;
+        }
+    }
+
+    let distribution: HashMap<monster::Kind, f64> = histogram
+        .iter()
+        .map(|(&k, &v)| (k, (v as f64) / (encounts.len() as f64)))
+        .collect();
+    return distribution;
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct EncountSimulation {
+    monster_dists: HashMap<monster::Kind, f64>,
+    encount_dists: HashMap<Encount, f64>,
+}
+
+#[wasm_bindgen]
+pub fn encount_simulation_for_js(table_index: usize, iter: usize) -> JsValue {
+    let encounts = simulate(table_index, iter);
+    let monster_dists = monster_distribution(&encounts);
+    let encount_dists = encount_distribution(&encounts);
+    let ret = EncountSimulation {
+        monster_dists,
+        encount_dists,
+    };
+    return JsValue::from_serde(&ret).unwrap();
 }

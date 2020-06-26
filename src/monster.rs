@@ -19,7 +19,7 @@ lazy_static! {
     };
 }
 
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct Kind(pub usize);
 
 impl fmt::Display for Kind {
